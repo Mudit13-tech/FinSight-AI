@@ -106,4 +106,4 @@ API keys go in a local `.env` file, which is never committed.
 
 ## Author
 
-**Mudit Golchha**,**Niharika Gupta ** NIT Jalandhar
+**Mudit Golchha**,**Niharika Gupta** NIT Jalandhar
