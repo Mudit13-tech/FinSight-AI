@@ -1,68 +1,122 @@
-import pandas as pd
+
+"""Sanity-check data/prices.csv and draw the growth chart."""
+
 from pathlib import Path
-from finsight.universe import STOCKS, BENCHMARK
+
 import matplotlib.pyplot as plt
+import pandas as pd
+
+from finsight.universe import STOCKS, BENCHMARK
+
+PRICES_FILE = Path("data/prices.csv")
+CHART_FILE = Path("data/growth_of_100.png")
 
 
-def load_prices(path: Path = Path("data/prices.csv")) -> pd.DataFrame:
-    return pd.read_csv(path)
+def load_prices(path: Path = PRICES_FILE) -> pd.DataFrame:
+    return pd.read_csv(path, parse_dates=["date"])
+
 
 def run_checks(data: pd.DataFrame) -> None:
-    unique = data["ticker"].unique()
-    tickers = STOCKS + [BENCHMARK]
+    """Summarize the data and report suspicious records."""
 
-    for ticker in tickers:
-        if ticker not in unique:
-            raise ValueError(f"Missing ticker: {ticker}")
+    summary = data.groupby("ticker").agg(
+        rows=("date", "count"),
+        first_day=("date", "min"),
+        last_day=("date", "max"),
+        missing_close=("close", lambda s: s.isna().sum()),
+    )
 
+    print(summary.to_string(), "\n")
 
-    if (data["close"] <= 0).any():
-        raise ValueError("Invalid close price")
+    problems = []
 
+    expected_tickers = set(STOCKS) | {BENCHMARK}
+    missing = expected_tickers - set(data["ticker"])
 
-    if ((data["close"] > data["high"]).any()or (data["close"] < data["low"]).any()):
-        raise ValueError("Close price outside low-high range")
-    
+    if missing:
+        problems.append(f"Missing tickers: {sorted(missing)}")
+
+    if data["close"].isna().any():
+        problems.append("Some closing prices are missing")
+
+    if (data["close"].dropna() <= 0).any():
+        problems.append("Some close prices are zero or negative")
+
+    bad_range = (
+        (data["close"] > data["high"])
+        | (data["close"] < data["low"])
+    )
+
+    if bad_range.any():
+        problems.append(
+            f"{bad_range.sum()} rows have close outside the low-high range"
+        )
+
     if data.duplicated(subset=["date", "ticker"]).any():
-        raise ValueError("Duplicate date-ticker rows found")
+        problems.append("Duplicate (date, ticker) rows")
 
-    counts = data["ticker"].value_counts()
-    median_rows = counts.median()
+    if not summary.empty:
+        short = summary[
+            summary["rows"] < 0.9 * summary["rows"].median()
+        ]
 
-    if (counts < median_rows / 2).any():
-        raise ValueError("Some tickers have too few rows")
-    
-    print("All checks passed.")
+        if not short.empty:
+            problems.append(
+                f"Tickers with too little history: {list(short.index)}"
+            )
+
+    if problems:
+        print("PROBLEMS:")
+        for problem in problems:
+            print(f"- {problem}")
+    else:
+        print("All checks passed.")
+
 
 def plot_growth_of_100(data: pd.DataFrame) -> None:
+    """Plot the growth of Rs 100 using adjusted closing prices."""
+
     wide = data.pivot(
-    index="date",
-    columns="ticker",
-    values="adj_close"
+        index="date",
+        columns="ticker",
+        values="adj_close",
     )
-    growth = wide.div(wide.iloc[0]).mul(100)
-    ax = growth.plot(figsize=(14, 7), alpha=0.6)
-    ax.plot(
-    growth.index,
-    growth["^NSEI"],
-    color="black",
-    linewidth=3,
-    label="Nifty 50"
-    )
-    ax.set_title("Growth of ₹100: Stocks vs Nifty 50")
+
+    growth = wide / wide.bfill().iloc[0] * 100
+
+    stocks = growth.drop(columns=[BENCHMARK], errors="ignore")
+
+    fig, ax = plt.subplots(figsize=(12, 7))
+    stocks.plot(ax=ax, linewidth=0.8, alpha=0.5, legend=False)
+
+    if BENCHMARK in growth.columns:
+        growth[BENCHMARK].plot(
+            ax=ax,
+            color="black",
+            linewidth=2.5,
+            label="Nifty 50",
+        )
+        ax.legend(loc="upper left")
+
+    ax.set_title("Growth of Rs 100 over 5 years (adjusted close)")
     ax.set_xlabel("Date")
-    ax.set_ylabel("Value of ₹100")
-    ax.legend(loc="best")
-    plt.tight_layout()
+    ax.set_ylabel("Value (Rs)")
+
+    fig.tight_layout()
+
+    CHART_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(CHART_FILE, dpi=120)
+    print(f"Chart saved -> {CHART_FILE}")
+
     plt.show()
-
-    out = Path("data/growth_of_100.png")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close()
+    plt.close(fig)
 
 
-if __name__ == "__main__":
+def main() -> None:
     data = load_prices()
     run_checks(data)
     plot_growth_of_100(data)
+
+
+if __name__ == "__main__":
+    main()
