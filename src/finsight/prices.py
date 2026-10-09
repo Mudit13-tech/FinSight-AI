@@ -12,7 +12,7 @@ def download_one(ticker:str,period:str = "5y")->pd.DataFrame:
     )
 
     if data.empty:
-        raise ValueError(f"No data found  for{ticker}")
+        raise ValueError(f"No data found for{ticker}")
 
     data = data.reset_index()
 
