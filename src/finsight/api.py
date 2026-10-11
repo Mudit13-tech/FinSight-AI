@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from finsight.universe import STOCKS, BENCHMARK
 from pathlib import Path
 import pandas as pd
@@ -48,7 +49,7 @@ def get_stock_prices(
     if not DATA_FILE.exists():
         raise HTTPException(
             status_code=503,
-            detail= "Data file is missing. Please run the 'scrape' command first."
+            detail= "Data file is missing. Please run 'python -m finsight.prices' first."
         )
 
     data = pd.read_csv(DATA_FILE)
@@ -64,7 +65,6 @@ def get_stock_prices(
     page = stock_data.iloc[offset:offset + limit]
     records = page.to_dict(orient="records")
 
-    from fastapi.encoders import jsonable_encoder
     records = jsonable_encoder(records)
 
     return {
