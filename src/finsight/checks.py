@@ -81,9 +81,9 @@ def plot_growth_of_100(data: pd.DataFrame) -> None:
         columns="ticker",
         values="adj_close",
     )
-
-    growth = wide / wide.bfill().iloc[0] * 100
-
+    
+    wide = wide.dropna()
+    growth = wide.div(wide.iloc[0]).mul(100)
     stocks = growth.drop(columns=[BENCHMARK], errors="ignore")
 
     fig, ax = plt.subplots(figsize=(12, 7))
