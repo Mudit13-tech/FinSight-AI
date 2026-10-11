@@ -1,8 +1,9 @@
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from finsight.universe import STOCKS, BENCHMARK
 from pathlib import Path
 import pandas as pd
-from fastapi import HTTPException
+from fastapi import HTTPException,Query
 
 DATA_FILE = Path("data/prices.csv")
 
@@ -34,7 +35,11 @@ def get_stocks():
     }
 
 @app.get("/prices/{ticker}")
-def get_stock_prices(ticker:str):
+def get_stock_prices(
+    ticker:str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    ):
     if ticker not in STOCKS and ticker != BENCHMARK:
         raise HTTPException(
             status_code=404,
@@ -44,7 +49,7 @@ def get_stock_prices(ticker:str):
     if not DATA_FILE.exists():
         raise HTTPException(
             status_code=503,
-            detail= "Data file is missing. Please run the 'scrape' command first."
+            detail= "Data file is missing. Please run 'python -m finsight.prices' first."
         )
 
     data = pd.read_csv(DATA_FILE)
@@ -56,10 +61,18 @@ def get_stock_prices(ticker:str):
             detail=f"No price records found for {ticker}",
         )
 
-    stock_data = stock_data.where(pd.notna(stock_data), None)
+    total = len(stock_data)
+    page = stock_data.iloc[offset:offset + limit]
+    records = page.to_dict(orient="records")
+
+    records = jsonable_encoder(records)
 
     return {
         "ticker": ticker,
-        "count": len(stock_data),
-        "prices": stock_data.to_dict(orient="records"),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "count": len(records),
+        "prices": records,
     }
+

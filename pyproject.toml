@@ -10,6 +10,8 @@ dependencies = [
 "pandas",
 "yfinance",
 "matplotlib",
+"fastapi",
+"uvicorn[standard]",
 ]
 
 [tool.setuptools.packages.find]
