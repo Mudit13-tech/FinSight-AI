@@ -12,6 +12,7 @@ dependencies = [
 "matplotlib",
 "fastapi",
 "uvicorn[standard]",
+"pytest",
 ]
 
 [tool.setuptools.packages.find]
